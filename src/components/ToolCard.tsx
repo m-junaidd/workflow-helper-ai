@@ -1,6 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import VoteButton from './VoteButton';
+import { Bookmark, BookmarkCheck } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 interface ToolCardProps {
   id: string;
@@ -22,6 +27,72 @@ const ToolCard: React.FC<ToolCardProps> = ({
   imageUrl
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      checkIfFavorite();
+    }
+  }, [user, id]);
+
+  const checkIfFavorite = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select()
+        .eq('user_id', user?.id)
+        .eq('tool_id', id)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      setIsFavorite(!!data);
+    } catch (error) {
+      console.error('Error checking favorite status:', error);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (!user) {
+      toast.error('Please sign in to save favorites');
+      navigate('/auth');
+      return;
+    }
+
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('tool_id', id);
+
+        if (error) throw error;
+        
+        setIsFavorite(false);
+        toast.success('Removed from favorites');
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('favorites')
+          .insert({
+            user_id: user.id,
+            tool_id: id
+          });
+
+        if (error) throw error;
+        
+        setIsFavorite(true);
+        toast.success('Added to favorites');
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error('Failed to update favorites');
+    }
+  };
 
   return (
     <div 
@@ -74,8 +145,21 @@ const ToolCard: React.FC<ToolCardProps> = ({
             Visit Website
           </a>
           
-          <div className="text-xs text-gray-500">
-            Updated 2 days ago
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={toggleFavorite}
+              className={`p-1 rounded-full transition-all duration-200 ${
+                isFavorite 
+                  ? 'text-yellow-500 hover:bg-yellow-50' 
+                  : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              {isFavorite ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+            </button>
+            <div className="text-xs text-gray-500">
+              Updated 2 days ago
+            </div>
           </div>
         </div>
       </div>

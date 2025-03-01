@@ -1,7 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 interface VoteButtonProps {
   initialUpvotes?: number;
@@ -11,30 +14,138 @@ interface VoteButtonProps {
 const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) => {
   const [votes, setVotes] = useState(initialUpvotes);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const handleVote = (type: 'up' | 'down') => {
-    // If user clicks the same button they already clicked, remove their vote
-    if (type === userVote) {
-      setVotes(type === 'up' ? votes - 1 : votes + 1);
-      setUserVote(null);
-      toast.info("Vote removed");
+  useEffect(() => {
+    if (user) {
+      fetchUserVote();
+    }
+  }, [user, toolId]);
+
+  const fetchUserVote = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('votes')
+        .select('vote_type')
+        .eq('user_id', user?.id)
+        .eq('tool_id', toolId)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (data) {
+        setUserVote(data.vote_type as 'up' | 'down');
+      }
+    } catch (error) {
+      console.error('Error fetching user vote:', error);
+    }
+  };
+
+  const handleVote = async (type: 'up' | 'down') => {
+    if (!user) {
+      toast.error('Please sign in to vote');
+      navigate('/auth');
       return;
     }
 
-    // If user is changing their vote from up to down or vice versa
-    if (userVote) {
-      // Add 2 or subtract 2 depending on the change (to account for removing the old vote and adding the new one)
-      setVotes(type === 'up' ? votes + 2 : votes - 2);
-    } else {
-      // User is voting for the first time
-      setVotes(type === 'up' ? votes + 1 : votes - 1);
+    try {
+      // If user clicks the same button they already clicked, remove their vote
+      if (type === userVote) {
+        // Delete the vote from the database
+        const { error: deleteError } = await supabase
+          .from('votes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('tool_id', toolId);
+
+        if (deleteError) throw deleteError;
+
+        // Update tool's vote count
+        const voteChange = type === 'up' ? -1 : 1;
+        const updateField = type === 'up' ? 'upvotes' : 'downvotes';
+        
+        const { error: updateError } = await supabase
+          .from('tools')
+          .update({ [updateField]: supabase.rpc('decrement', { x: 1 }) })
+          .eq('id', toolId);
+
+        if (updateError) throw updateError;
+
+        // Update local state
+        setVotes(type === 'up' ? votes - 1 : votes + 1);
+        setUserVote(null);
+        toast.info("Vote removed");
+        return;
+      }
+
+      // If user is changing their vote
+      if (userVote) {
+        // Delete the old vote
+        const { error: deleteError } = await supabase
+          .from('votes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('tool_id', toolId);
+
+        if (deleteError) throw deleteError;
+
+        // Update the tool's vote counts (remove old vote, add new vote)
+        const oldField = userVote === 'up' ? 'upvotes' : 'downvotes';
+        const newField = type === 'up' ? 'upvotes' : 'downvotes';
+        
+        const { error: updateOldError } = await supabase
+          .from('tools')
+          .update({ [oldField]: supabase.rpc('decrement', { x: 1 }) })
+          .eq('id', toolId);
+
+        if (updateOldError) throw updateOldError;
+        
+        const { error: updateNewError } = await supabase
+          .from('tools')
+          .update({ [newField]: supabase.rpc('increment', { x: 1 }) })
+          .eq('id', toolId);
+
+        if (updateNewError) throw updateNewError;
+
+        // Add the new vote
+        const { error: insertError } = await supabase
+          .from('votes')
+          .insert({ user_id: user.id, tool_id: toolId, vote_type: type });
+
+        if (insertError) throw insertError;
+
+        // Update local state
+        setVotes(type === 'up' ? votes + 2 : votes - 2);
+      } else {
+        // User is voting for the first time
+        // Add the vote
+        const { error: insertError } = await supabase
+          .from('votes')
+          .insert({ user_id: user.id, tool_id: toolId, vote_type: type });
+
+        if (insertError) throw insertError;
+
+        // Update the tool's vote count
+        const updateField = type === 'up' ? 'upvotes' : 'downvotes';
+        
+        const { error: updateError } = await supabase
+          .from('tools')
+          .update({ [updateField]: supabase.rpc('increment', { x: 1 }) })
+          .eq('id', toolId);
+
+        if (updateError) throw updateError;
+
+        // Update local state
+        setVotes(type === 'up' ? votes + 1 : votes - 1);
+      }
+
+      setUserVote(type);
+      toast.success(`${type === 'up' ? 'Upvoted' : 'Downvoted'} successfully`);
+    } catch (error) {
+      console.error('Error voting:', error);
+      toast.error('Failed to save your vote');
     }
-
-    setUserVote(type);
-    toast.success(`${type === 'up' ? 'Upvoted' : 'Downvoted'} successfully`);
-
-    // In a real app, you would send this to your backend
-    console.log(`User ${type}voted tool ${toolId}. New vote count: ${votes}`);
   };
 
   return (
