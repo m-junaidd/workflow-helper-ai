@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isUserAdmin } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -39,11 +39,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        await fetchProfile(session.user.id);
       } else {
         setProfile(null);
         setIsAdmin(false);
@@ -58,6 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -69,9 +70,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setProfile(data);
-      setIsAdmin(data.role === 'admin');
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      
+      // Check if user is admin
+      const adminStatus = await isUserAdmin(userId);
+      setIsAdmin(adminStatus);
+    } catch (error: any) {
+      console.error('Error fetching profile:', error.message);
+      toast.error('Failed to load user profile');
     } finally {
       setIsLoading(false);
     }
@@ -114,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Signed in successfully!');
       navigate('/');
     } catch (error: any) {
+      console.error('Login error:', error);
       toast.error(`Error signing in: ${error.message}`);
       throw error;
     }
