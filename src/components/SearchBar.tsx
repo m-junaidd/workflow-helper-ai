@@ -11,7 +11,13 @@ const SearchBar: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`/results?q=${encodeURIComponent(query)}`);
+      if (window.location.pathname === '/ai-recommendations') {
+        // If on AI recommendations page, we'll let the component handle the query
+        // Just refresh to make sure the query is used
+        window.location.reload();
+      } else {
+        navigate(`/results?q=${encodeURIComponent(query)}`);
+      }
     }
   };
 
@@ -31,7 +37,9 @@ const SearchBar: React.FC = () => {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder="Describe your task or workflow..."
+          placeholder={window.location.pathname === '/ai-recommendations' 
+            ? "Describe your task or workflow for AI recommendations..." 
+            : "Search for AI tools..."}
           className="flex-grow py-4 px-6 bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none rounded-l-2xl"
         />
         <button

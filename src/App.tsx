@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import { AuthProvider } from "./contexts/AuthContext";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import AIRecommendations from "./components/AIRecommendations";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/results" element={<Results />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/ai-recommendations" element={<AIRecommendations />} />
             <Route path="/profile" element={
               <ProtectedRoute>
                 <Profile />
