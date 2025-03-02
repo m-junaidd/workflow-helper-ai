@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { ExternalLink, ThumbsUp, Zap, Lightbulb, BookmarkCheck, Sparkles } from 'lucide-react';
+import { ExternalLink, Zap, Lightbulb, BookmarkCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -54,7 +54,10 @@ const AIRecommendations = () => {
         `)
         .eq('is_verified', true);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching tools:', error);
+        throw error;
+      }
       
       // Create a lookup object for tools
       const toolsMap = (data || []).reduce((acc: { [key: string]: Tool }, tool: Tool) => {
@@ -65,15 +68,14 @@ const AIRecommendations = () => {
       setTools(toolsMap);
       return data;
     },
-    enabled: true,
   });
 
   // Submit the query automatically if it comes from URL parameters
   useEffect(() => {
-    if (initialQuery && !isLoadingTools) {
+    if (initialQuery && !isLoadingTools && toolsData) {
       handleSubmit(new Event('submit') as unknown as React.FormEvent);
     }
-  }, [initialQuery, isLoadingTools]);
+  }, [initialQuery, isLoadingTools, toolsData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,13 +89,16 @@ const AIRecommendations = () => {
     setRecommendations(null);
     
     try {
+      console.log('Submitting query:', query);
+      console.log('Available tools:', Object.values(tools).length);
+      
       const response = await fetch(
-        `${import.meta.env.PROD ? "https://bnycgfzpfoiuwwnhxtjd.supabase.co" : ""}/functions/v1/gemini-recommendations`,
+        `${import.meta.env.VITE_SUPABASE_URL || "https://bnycgfzpfoiuwwnhxtjd.supabase.co"}/functions/v1/gemini-recommendations`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabase.auth.getSession()}`
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
           },
           body: JSON.stringify({
             query,
@@ -102,11 +107,14 @@ const AIRecommendations = () => {
         }
       );
       
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
         throw new Error(`Error: ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('Response data:', data);
       
       // Check if the response contains an error
       if (data.error) {
@@ -163,8 +171,9 @@ const AIRecommendations = () => {
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-12">
       <div className="text-center mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold mb-4 text-blue-700">
-          Find the Perfect AI Tools <span className="text-gray-800">for Your Workflow</span>
+        <h1 className="text-3xl md:text-4xl font-bold mb-4">
+          <span className="text-blue-600">Find the Perfect AI Tools</span>
+          <span className="text-gray-800"> for Your Workflow</span>
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           Tell us about your work or task, and we'll recommend the best AI tools to boost your productivity
@@ -173,7 +182,7 @@ const AIRecommendations = () => {
     
       <Card className="border-none shadow-xl bg-gradient-to-br from-blue-50 to-white mb-10">
         <CardHeader className="pb-4">
-          <CardTitle className="text-2xl font-bold text-center text-blue-700">
+          <CardTitle className="text-2xl font-bold text-center text-blue-600">
             <span className="flex items-center justify-center">
               <Sparkles className="h-5 w-5 mr-2 text-blue-500" />
               AI Tool Advisor
@@ -248,6 +257,7 @@ const AIRecommendations = () => {
                     const tool = tools[rec.tool_id];
                     
                     if (!tool) {
+                      console.warn('Tool not found:', rec.tool_id);
                       return null;
                     }
                     
