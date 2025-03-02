@@ -29,6 +29,7 @@ const ToolCard: React.FC<ToolCardProps> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -62,6 +63,7 @@ const ToolCard: React.FC<ToolCardProps> = ({
       return;
     }
 
+    setIsLoading(true);
     try {
       if (isFavorite) {
         // Remove from favorites
@@ -92,6 +94,8 @@ const ToolCard: React.FC<ToolCardProps> = ({
     } catch (error) {
       console.error('Error toggling favorite:', error);
       toast.error('Failed to update favorites');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -111,12 +115,12 @@ const ToolCard: React.FC<ToolCardProps> = ({
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center mb-3">
-              <span className="px-2.5 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full">
+              <span className="px-2.5 py-0.5 bg-blue-100 text-blue-600 text-xs font-medium rounded-full">
                 {category}
               </span>
             </div>
             
-            <h3 className="text-lg font-semibold group-hover:text-primary transition-colors duration-300">
+            <h3 className="text-xl font-semibold group-hover:text-blue-600 transition-colors duration-300">
               {name}
             </h3>
             
@@ -126,7 +130,7 @@ const ToolCard: React.FC<ToolCardProps> = ({
           </div>
           
           {imageUrl && (
-            <div className="ml-4 flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-gray-100">
+            <div className="ml-4 flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border border-gray-100">
               <img 
                 src={imageUrl} 
                 alt={name} 
@@ -140,7 +144,7 @@ const ToolCard: React.FC<ToolCardProps> = ({
           <Button 
             variant="outline"
             size="sm"
-            className="text-sm font-medium text-primary hover:bg-primary/5"
+            className="text-sm font-medium text-blue-600 hover:bg-blue-50 border-blue-200"
             onClick={() => window.open(url, '_blank')}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
@@ -150,11 +154,12 @@ const ToolCard: React.FC<ToolCardProps> = ({
           <div className="flex items-center space-x-4">
             <button
               onClick={toggleFavorite}
-              className={`p-1 rounded-full transition-all duration-200 ${
+              disabled={isLoading}
+              className={`p-1.5 rounded-full transition-all duration-200 ${
                 isFavorite 
                   ? 'text-yellow-500 hover:bg-yellow-50' 
                   : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-              }`}
+              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
             >
               {isFavorite ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
