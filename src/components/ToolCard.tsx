@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import VoteButton from './VoteButton';
-import { Bookmark, BookmarkCheck } from 'lucide-react';
+import { Bookmark, BookmarkCheck, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface ToolCardProps {
   id: string;
@@ -96,8 +97,8 @@ const ToolCard: React.FC<ToolCardProps> = ({
 
   return (
     <div 
-      className={`group flex rounded-2xl overflow-hidden bg-white hover-card transition-all duration-300 border border-gray-100 ${
-        isHovered ? 'shadow-medium' : 'shadow-soft'
+      className={`group flex rounded-2xl overflow-hidden bg-white transition-all duration-300 border border-gray-100 ${
+        isHovered ? 'shadow-lg transform -translate-y-1' : 'shadow-md'
       }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -136,14 +137,15 @@ const ToolCard: React.FC<ToolCardProps> = ({
         </div>
         
         <div className="mt-4 flex items-center justify-between">
-          <a 
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-primary hover:underline"
+          <Button 
+            variant="outline"
+            size="sm"
+            className="text-sm font-medium text-primary hover:bg-primary/5"
+            onClick={() => window.open(url, '_blank')}
           >
+            <ExternalLink className="h-4 w-4 mr-2" />
             Visit Website
-          </a>
+          </Button>
           
           <div className="flex items-center space-x-4">
             <button
@@ -157,9 +159,6 @@ const ToolCard: React.FC<ToolCardProps> = ({
             >
               {isFavorite ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
             </button>
-            <div className="text-xs text-gray-500">
-              Updated 2 days ago
-            </div>
           </div>
         </div>
       </div>

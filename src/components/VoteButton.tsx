@@ -14,6 +14,7 @@ interface VoteButtonProps {
 const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) => {
   const [votes, setVotes] = useState(initialUpvotes);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
+  const [isVoting, setIsVoting] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -43,12 +44,16 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
   };
 
   const handleVote = async (type: 'up' | 'down') => {
+    if (isVoting) return; // Prevent multiple clicks
+    
     if (!user) {
       toast.error('Please sign in to vote');
       navigate('/auth');
       return;
     }
 
+    setIsVoting(true);
+    
     try {
       // If user clicks the same button they already clicked, remove their vote
       if (type === userVote) {
@@ -63,11 +68,13 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
 
         // Update tool's vote count
         const voteChange = type === 'up' ? -1 : 1;
-        const updateField = type === 'up' ? 'upvotes' : 'downvotes';
         
         const { error: updateError } = await supabase
           .from('tools')
-          .update({ [updateField]: supabase.rpc('decrement', { x: 1 }) })
+          .update({ 
+            upvotes: type === 'up' ? votes - 1 : votes,
+            downvotes: type === 'down' ? supabase.rpc('decrement', { x: 1 }) : undefined 
+          })
           .eq('id', toolId);
 
         if (updateError) throw updateError;
@@ -91,23 +98,17 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
         if (deleteError) throw deleteError;
 
         // Update the tool's vote counts (remove old vote, add new vote)
-        const oldField = userVote === 'up' ? 'upvotes' : 'downvotes';
-        const newField = type === 'up' ? 'upvotes' : 'downvotes';
-        
-        const { error: updateOldError } = await supabase
+        const { error: updateError } = await supabase
           .from('tools')
-          .update({ [oldField]: supabase.rpc('decrement', { x: 1 }) })
+          .update({ 
+            upvotes: type === 'up' ? votes + 1 : (userVote === 'up' ? votes - 1 : votes),
+            downvotes: type === 'down' ? supabase.rpc('increment', { x: 1 }) : 
+                      (userVote === 'down' ? supabase.rpc('decrement', { x: 1 }) : undefined)  
+          })
           .eq('id', toolId);
 
-        if (updateOldError) throw updateOldError;
+        if (updateError) throw updateError;
         
-        const { error: updateNewError } = await supabase
-          .from('tools')
-          .update({ [newField]: supabase.rpc('increment', { x: 1 }) })
-          .eq('id', toolId);
-
-        if (updateNewError) throw updateNewError;
-
         // Add the new vote
         const { error: insertError } = await supabase
           .from('votes')
@@ -116,7 +117,9 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
         if (insertError) throw insertError;
 
         // Update local state
-        setVotes(type === 'up' ? votes + 2 : votes - 2);
+        setVotes(type === 'up' ? 
+          (userVote === 'up' ? votes : votes + 2) : 
+          (userVote === 'down' ? votes : votes - 2));
       } else {
         // User is voting for the first time
         // Add the vote
@@ -127,11 +130,12 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
         if (insertError) throw insertError;
 
         // Update the tool's vote count
-        const updateField = type === 'up' ? 'upvotes' : 'downvotes';
-        
         const { error: updateError } = await supabase
           .from('tools')
-          .update({ [updateField]: supabase.rpc('increment', { x: 1 }) })
+          .update({ 
+            upvotes: type === 'up' ? supabase.rpc('increment', { x: 1 }) : undefined,
+            downvotes: type === 'down' ? supabase.rpc('increment', { x: 1 }) : undefined 
+          })
           .eq('id', toolId);
 
         if (updateError) throw updateError;
@@ -145,6 +149,8 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
     } catch (error) {
       console.error('Error voting:', error);
       toast.error('Failed to save your vote');
+    } finally {
+      setIsVoting(false);
     }
   };
 
@@ -152,10 +158,12 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
     <div className="flex flex-col items-center justify-center space-y-1">
       <button 
         onClick={() => handleVote('up')}
+        disabled={isVoting}
         className={`p-1 rounded-full transition-all duration-200 
           ${userVote === 'up' 
             ? 'bg-green-100 text-green-600' 
-            : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}
+            : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'} 
+          ${isVoting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         aria-label="Upvote"
       >
         <ArrowUp className="h-5 w-5" />
@@ -169,10 +177,12 @@ const VoteButton: React.FC<VoteButtonProps> = ({ initialUpvotes = 0, toolId }) =
       
       <button 
         onClick={() => handleVote('down')}
+        disabled={isVoting}
         className={`p-1 rounded-full transition-all duration-200 
           ${userVote === 'down' 
             ? 'bg-red-100 text-red-600' 
-            : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}
+            : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}
+          ${isVoting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         aria-label="Downvote"
       >
         <ArrowDown className="h-5 w-5" />

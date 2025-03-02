@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { ExternalLink, ThumbsUp, Zap } from 'lucide-react';
+import { ExternalLink, ThumbsUp, Zap, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 
@@ -52,7 +52,7 @@ const AIRecommendations = () => {
           *,
           categories(name)
         `)
-        .eq('verified', true);
+        .eq('is_verified', true);
       
       if (error) throw error;
       
@@ -157,11 +157,11 @@ const AIRecommendations = () => {
     <div className="w-full max-w-4xl mx-auto mt-8 px-4">
       <Card className="border-none shadow-xl bg-gradient-to-br from-blue-50 to-purple-50">
         <CardHeader className="pb-4">
-          <CardTitle className="text-2xl font-bold text-center">
-            <span className="text-gradient">AI Tool Recommendations</span>
+          <CardTitle className="text-2xl md:text-3xl font-bold text-center">
+            <span className="text-gradient">AI Tool Advisor</span>
           </CardTitle>
-          <CardDescription className="text-center text-base">
-            Describe your task or workflow, and we'll recommend the best AI tools to help you
+          <CardDescription className="text-center text-base md:text-lg">
+            Describe your task or workflow, and our AI will recommend the best tools to supercharge your productivity
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -171,15 +171,15 @@ const AIRecommendations = () => {
                 placeholder="E.g., I need to write blog posts and create images for my website"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full p-4 h-auto text-base"
+                className="w-full p-4 h-auto text-base md:text-lg bg-white/80 backdrop-blur-sm border-primary/20"
               />
             </div>
             <Button 
               type="submit" 
               disabled={isSubmitting || isLoadingTools}
-              className="w-full py-6"
+              className="w-full py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary"
             >
-              <Zap className="mr-2" size={18} />
+              <Zap className="mr-2 animate-pulse" size={18} />
               {isSubmitting ? "Analyzing..." : "Get AI Recommendations"}
             </Button>
           </form>
@@ -208,8 +208,11 @@ const AIRecommendations = () => {
             </div>
           ) : (
             <>
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">General Advice</h3>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl shadow-md">
+                <h3 className="text-lg font-medium text-gray-800 mb-2 flex items-center">
+                  <Lightbulb className="mr-2 text-primary" size={20} />
+                  General Advice
+                </h3>
                 <p className="text-gray-700">{recommendations.general_advice}</p>
               </div>
               
@@ -225,7 +228,7 @@ const AIRecommendations = () => {
                     }
                     
                     return (
-                      <Card key={index} className="hover-card overflow-hidden">
+                      <Card key={index} className="hover-card overflow-hidden border border-gray-100">
                         <CardHeader className="pb-2">
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-xl">{tool.name}</CardTitle>
@@ -243,7 +246,7 @@ const AIRecommendations = () => {
                             <p className="text-gray-600">{rec.reasons}</p>
                           </div>
                           <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-1">Usage tips:</h4>
+                            <h4 className="text-sm font-semibold text-gray-700 mb-1">How to use it effectively:</h4>
                             <p className="text-gray-600">{rec.usage_tips}</p>
                           </div>
                         </CardContent>
@@ -252,6 +255,7 @@ const AIRecommendations = () => {
                             variant="outline" 
                             size="sm"
                             onClick={() => window.open(tool.url, '_blank')}
+                            className="border-primary/30 text-primary hover:bg-primary/5"
                           >
                             <ExternalLink className="h-4 w-4 mr-2" />
                             Visit Website
@@ -260,6 +264,7 @@ const AIRecommendations = () => {
                             variant="ghost" 
                             size="sm"
                             onClick={() => handleSaveToFavorites(tool.id)}
+                            className="hover:bg-primary/10 hover:text-primary"
                           >
                             <ThumbsUp className="h-4 w-4 mr-2" />
                             Save to Favorites
