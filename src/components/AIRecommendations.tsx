@@ -46,6 +46,7 @@ const AIRecommendations = () => {
   const { isLoading: isLoadingTools, data: toolsData } = useQuery({
     queryKey: ['tools'],
     queryFn: async () => {
+      console.log('Fetching tools from database...');
       const { data, error } = await supabase
         .from('tools')
         .select(`
@@ -58,6 +59,8 @@ const AIRecommendations = () => {
         console.error('Error fetching tools:', error);
         throw error;
       }
+      
+      console.log(`Fetched ${data?.length || 0} tools from database`);
       
       // Create a lookup object for tools
       const toolsMap = (data || []).reduce((acc: { [key: string]: Tool }, tool: Tool) => {
@@ -73,6 +76,7 @@ const AIRecommendations = () => {
   // Submit the query automatically if it comes from URL parameters
   useEffect(() => {
     if (initialQuery && !isLoadingTools && toolsData) {
+      console.log('Auto-submitting query from URL:', initialQuery);
       handleSubmit(new Event('submit') as unknown as React.FormEvent);
     }
   }, [initialQuery, isLoadingTools, toolsData]);
@@ -92,13 +96,23 @@ const AIRecommendations = () => {
       console.log('Submitting query:', query);
       console.log('Available tools:', Object.values(tools).length);
       
+      // Get the Supabase URL from environment or fallback to the hardcoded URL
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://bnycgfzpfoiuwwnhxtjd.supabase.co";
+      console.log('Using Supabase URL:', supabaseUrl);
+      
+      // Get the current session access token
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token || '';
+      
+      console.log('Calling Supabase edge function...');
+      
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL || "https://bnycgfzpfoiuwwnhxtjd.supabase.co"}/functions/v1/gemini-recommendations`,
+        `${supabaseUrl}/functions/v1/gemini-recommendations`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
+            'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify({
             query,
@@ -110,7 +124,9 @@ const AIRecommendations = () => {
       console.log('Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Error response from function:', errorText);
+        throw new Error(`Error: ${response.statusText}. ${errorText}`);
       }
       
       const data = await response.json();
@@ -140,12 +156,17 @@ const AIRecommendations = () => {
 
     try {
       // Check if already favorited
-      const { data: existingFavorite } = await supabase
+      const { data: existingFavorite, error: checkError } = await supabase
         .from('favorites')
         .select()
         .eq('user_id', user.id)
         .eq('tool_id', toolId)
         .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking favorite:', checkError);
+        throw checkError;
+      }
 
       if (existingFavorite) {
         toast.info("This tool is already in your favorites!");
@@ -207,8 +228,17 @@ const AIRecommendations = () => {
               disabled={isSubmitting || isLoadingTools || !query.trim()}
               className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white"
             >
-              <Zap className="mr-2" size={18} />
-              {isSubmitting ? "Finding the best tools..." : "Get AI Recommendations"}
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Finding the best tools...
+                </>
+              ) : (
+                <>
+                  <Zap className="mr-2" size={18} />
+                  Get AI Recommendations
+                </>
+              )}
             </Button>
           </form>
         </CardContent>

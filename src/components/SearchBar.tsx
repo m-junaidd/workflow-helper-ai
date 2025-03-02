@@ -6,12 +6,18 @@ import { useNavigate } from 'react-router-dom';
 const SearchBar: React.FC = () => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`/ai-recommendations?q=${encodeURIComponent(query)}`);
+      setIsSubmitting(true);
+      // Add a slight delay to show loading state
+      setTimeout(() => {
+        navigate(`/ai-recommendations?q=${encodeURIComponent(query)}`);
+        setIsSubmitting(false);
+      }, 300);
     }
   };
 
@@ -37,13 +43,22 @@ const SearchBar: React.FC = () => {
         
         <button
           type="submit"
-          disabled={!query.trim()}
+          disabled={!query.trim() || isSubmitting}
           className={`w-full py-4 px-5 rounded-lg flex items-center justify-center text-white font-medium transition-colors ${
-            query.trim() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-400 cursor-not-allowed'
+            query.trim() && !isSubmitting ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-400 cursor-not-allowed'
           }`}
         >
-          <Zap className="mr-2 h-5 w-5" />
-          Get AI Recommendations
+          {isSubmitting ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              Processing...
+            </>
+          ) : (
+            <>
+              <Zap className="mr-2 h-5 w-5" />
+              Get AI Recommendations
+            </>
+          )}
         </button>
       </form>
       
