@@ -22,6 +22,9 @@ serve(async (req) => {
       throw new Error('Missing Gemini API key');
     }
 
+    console.log(`Processing recommendation request for query: ${query}`);
+    console.log(`Tools data available: ${toolsData.length} tools`);
+
     // Prepare a prompt that helps Gemini understand the task
     const prompt = `
     You are an AI tools expert. Based on the following user needs:
@@ -67,15 +70,19 @@ serve(async (req) => {
     });
 
     const data = await response.json();
+    console.log("Received response from Gemini API");
     
     // Extract and return the recommendation data
     let recommendations;
     try {
       const text = data.candidates[0].content.parts[0].text;
+      console.log("Raw Gemini response:", text.substring(0, 200) + "...");
+      
       // Extract JSON from the text response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         recommendations = JSON.parse(jsonMatch[0]);
+        console.log("Successfully parsed recommendations");
       } else {
         throw new Error('Could not parse JSON from response');
       }

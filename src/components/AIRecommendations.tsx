@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { ExternalLink, ThumbsUp, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 
 interface Recommendation {
   tool_id: string;
@@ -32,7 +33,10 @@ interface Tool {
 }
 
 const AIRecommendations = () => {
-  const [query, setQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
+  
+  const [query, setQuery] = useState(initialQuery);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
   const [tools, setTools] = useState<{ [key: string]: Tool }>({});
@@ -63,6 +67,13 @@ const AIRecommendations = () => {
     },
     enabled: true,
   });
+
+  // Submit the query automatically if it comes from URL parameters
+  useEffect(() => {
+    if (initialQuery && !isLoadingTools) {
+      handleSubmit(new Event('submit') as unknown as React.FormEvent);
+    }
+  }, [initialQuery, isLoadingTools]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

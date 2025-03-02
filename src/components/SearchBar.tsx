@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -11,9 +10,9 @@ const SearchBar: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      if (window.location.pathname === '/ai-recommendations') {
-        // If on AI recommendations page, we'll let the component handle the query
-        // Just refresh to make sure the query is used
+      if (window.location.pathname === '/') {
+        navigate(`/ai-recommendations?q=${encodeURIComponent(query)}`);
+      } else if (window.location.pathname === '/ai-recommendations') {
         window.location.reload();
       } else {
         navigate(`/results?q=${encodeURIComponent(query)}`);
@@ -39,7 +38,7 @@ const SearchBar: React.FC = () => {
           onBlur={() => setIsFocused(false)}
           placeholder={window.location.pathname === '/ai-recommendations' 
             ? "Describe your task or workflow for AI recommendations..." 
-            : "Search for AI tools..."}
+            : "Search for AI tools or describe your needs..."}
           className="flex-grow py-4 px-6 bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none rounded-l-2xl"
         />
         <button
