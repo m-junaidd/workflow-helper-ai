@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -10,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { generateMockRecommendations, mockTools } from '@/utils/mockData';
+import { mockTools } from '@/utils/mockData';
 
 interface Recommendation {
   tool_id: string;
@@ -64,7 +63,6 @@ const AIRecommendations = () => {
         
         console.log(`Fetched ${data?.length || 0} tools from database`);
         
-        // If no tools from database, use mock data
         if (!data || data.length === 0) {
           console.log('No tools found in database, using mock data');
           // Create a lookup object for tools from mockTools
@@ -136,84 +134,82 @@ const AIRecommendations = () => {
       console.log('Submitting query:', query);
       console.log('Available tools:', Object.values(tools).length);
       
-      // For testing purposes, we'll create a mock response if there's an issue with the edge function
-      const getMockRecommendation = () => {
-        console.log('Using mock recommendations for testing');
-        return generateMockRecommendations(query);
-      };
-      
       // Get the Supabase URL 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://bnycgfzpfoiuwwnhxtjd.supabase.co";
       console.log('Using Supabase URL:', supabaseUrl);
       
-      // Get the current session access token
-      const session = await supabase.auth.getSession();
-      const accessToken = session.data.session?.access_token || '';
+      // Call the edge function directly with simple params
+      const { data, error } = await supabase.functions.invoke('get-ai-recommendations', {
+        body: { query, tools: Object.values(tools) }
+      });
       
-      console.log('Calling Supabase edge function...');
-      
-      // Try to call the edge function
-      try {
-        // Check if tools are available first
-        if (Object.values(tools).length === 0) {
-          console.warn('No tools available, using mock recommendations');
-          const mockData = getMockRecommendation();
-          setRecommendations(mockData);
-          toast.success("AI recommendations generated (using mock data)");
-          setIsSubmitting(false);
-          return;
-        }
-        
-        const response = await fetch(
-          `${supabaseUrl}/functions/v1/gemini-recommendations`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({
-              query,
-              toolsData: Object.values(tools),
-            }),
-          }
-        );
-        
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error response from function:', errorText);
-          throw new Error(`Error: ${response.statusText}. ${errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log('Response data:', data);
-        
-        // Check if the response contains an error
-        if (data.error) {
-          console.error('Error in response:', data.error);
-          // Use mock data for testing if there's an error
-          const mockData = getMockRecommendation();
-          setRecommendations(mockData);
-          toast.success("AI recommendations generated (fallback mode)");
-        } else {
-          setRecommendations(data);
-          toast.success("AI recommendations generated successfully!");
-        }
-      } catch (error) {
+      if (error) {
         console.error('Error calling edge function:', error);
-        // Use mock data for testing if there's an error
-        const mockData = getMockRecommendation();
-        setRecommendations(mockData);
-        toast.success("AI recommendations generated (fallback mode)");
+        throw error;
+      }
+      
+      console.log('Response data:', data);
+      
+      if (data && !data.error) {
+        setRecommendations(data);
+        toast.success("AI recommendations generated successfully!");
+      } else {
+        console.error('Error in response:', data?.error);
+        throw new Error(data?.error || 'Unknown error occurred');
       }
     } catch (error) {
       console.error('Error getting recommendations:', error);
-      toast.error("Failed to get recommendations. Please try again.");
+      toast.error("Using fallback recommendations due to an error");
+      
+      // Generate fallback recommendations
+      const fallbackRecommendations = generateFallbackRecommendations(query, Object.values(tools));
+      setRecommendations(fallbackRecommendations);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Fallback recommendation generator when API fails
+  const generateFallbackRecommendations = (query: string, allTools: Tool[]) => {
+    const keywords = query.toLowerCase().split(/\s+/);
+    const toolMatches = new Map<string, number>();
+    
+    // Score tools based on keyword matches
+    allTools.forEach(tool => {
+      let score = 0;
+      const toolText = `${tool.name} ${tool.description} ${tool.categories?.name || ''}`.toLowerCase();
+      
+      keywords.forEach(keyword => {
+        if (toolText.includes(keyword)) {
+          score += 1;
+        }
+      });
+      
+      if (score > 0) {
+        toolMatches.set(tool.id, score);
+      }
+    });
+    
+    // Sort tools by score and take top 3
+    const sortedTools = [...toolMatches.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id]) => id);
+    
+    // Generate recommendations
+    const recommendations: Recommendation[] = sortedTools.map(id => {
+      const tool = allTools.find(t => t.id === id)!;
+      return {
+        tool_id: id,
+        reasons: `This tool matches your needs for "${query}" based on its capabilities in ${tool.categories?.name || 'its category'}.`,
+        usage_tips: `Start with the basic features and gradually explore more advanced options as you become comfortable with the interface.`
+      };
+    });
+    
+    return {
+      recommendations,
+      general_advice: `Based on your query "${query}", we recommend tools that can help automate and enhance your workflow. These tools are selected based on relevance to your described tasks.`
+    };
   };
 
   const handleSaveToFavorites = async (toolId: string) => {

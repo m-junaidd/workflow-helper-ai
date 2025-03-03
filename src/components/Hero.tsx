@@ -1,8 +1,35 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
+import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const Hero: React.FC = () => {
+  const [welcomeMessage, setWelcomeMessage] = useState<string>('');
+  const [isLoadingMessage, setIsLoadingMessage] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchWelcomeMessage = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-welcome-message');
+        
+        if (error) {
+          console.error('Error fetching welcome message:', error);
+          setWelcomeMessage('Discover the perfect AI tools tailored to your specific needs and workflows.');
+        } else {
+          setWelcomeMessage(data.message);
+        }
+      } catch (err) {
+        console.error('Exception fetching welcome message:', err);
+        setWelcomeMessage('Discover the perfect AI tools tailored to your specific needs and workflows.');
+      } finally {
+        setIsLoadingMessage(false);
+      }
+    };
+
+    fetchWelcomeMessage();
+  }, []);
+
   return (
     <section className="relative overflow-hidden pt-20 pb-16 md:pt-32 md:pb-24">
       {/* Background decoration - subtle gradient overlay */}
@@ -23,7 +50,11 @@ const Hero: React.FC = () => {
           </h1>
           
           <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto animate-slide-up">
-            Describe your tasks in plain language, and our AI will suggest the perfect tools to automate your work and boost your productivity.
+            {isLoadingMessage ? (
+              <Skeleton className="h-6 w-full mx-auto" />
+            ) : (
+              welcomeMessage
+            )}
           </p>
           
           <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
