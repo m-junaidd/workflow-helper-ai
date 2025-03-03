@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import ToolCard from './ToolCard';
 import { getToolsByQuery, Tool } from '../utils/mockData';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-// Import the getAuthHeader function
 import { supabase, getAuthHeader } from '@/lib/supabase';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -28,7 +28,6 @@ const AIRecommendations: React.FC = () => {
     try {
       console.log('Fetching AI recommendations for:', searchQuery);
       
-      // Use the getAuthHeader function to get the authorization header
       const { data, error } = await supabase.functions.invoke(
         'get-ai-recommendations',
         {
@@ -74,28 +73,44 @@ const AIRecommendations: React.FC = () => {
       </h1>
 
       {isLoading && (
-        <div className="flex justify-center items-center">
-          <Skeleton className="h-10 w-[200px]" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-64 w-full rounded-xl" />
+          ))}
         </div>
       )}
 
       {error && (
-        <div className="text-red-500 mb-4">
-          {error}
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-md">
+          <p className="text-amber-700">{error}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && recommendations.length === 0 && (
+        <div className="text-center py-16">
+          <p className="text-gray-500 text-lg mb-4">
+            No AI tools found for the query &quot;{searchQuery}&quot;.
+          </p>
+          <a href="/" className="text-blue-500 hover:text-blue-700">
+            Try a different search
+          </a>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {recommendations.map(tool => (
-          <ToolCard key={tool.id} tool={tool} />
+          <ToolCard 
+            key={tool.id} 
+            id={tool.id}
+            name={tool.name}
+            description={tool.description}
+            category={tool.category}
+            url={tool.url}
+            upvotes={tool.upvotes || 0}
+            imageUrl={tool.imageUrl}
+          />
         ))}
       </div>
-
-      {recommendations.length === 0 && !isLoading && !error && (
-        <div className="text-gray-500 mt-4">
-          No AI tools found for the query &quot;{searchQuery}&quot;.
-        </div>
-      )}
     </div>
   );
 };
