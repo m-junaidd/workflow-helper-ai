@@ -6,6 +6,7 @@ import ToolCard from '../components/ToolCard';
 import SearchBar from '../components/SearchBar';
 import { getToolsByQuery, Tool } from '../utils/mockData';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Results: React.FC = () => {
   const location = useLocation();
@@ -20,10 +21,26 @@ const Results: React.FC = () => {
     // In a real application, this would be an API call
     const fetchTools = () => {
       setLoading(true);
+      console.log('Fetching results for query:', searchQuery);
+      
       setTimeout(() => {
-        const results = getToolsByQuery(searchQuery);
-        setTools(results);
-        setLoading(false);
+        try {
+          const results = getToolsByQuery(searchQuery);
+          console.log(`Found ${results.length} matching tools`);
+          setTools(results);
+          
+          // Log results to help debugging
+          if (results.length === 0) {
+            console.log('No results found, you might want to check the search function');
+            toast.info("No exact matches found. Showing recommended tools.");
+          }
+          
+          setLoading(false);
+        } catch (error) {
+          console.error('Error fetching tools:', error);
+          toast.error('Something went wrong while searching for tools');
+          setLoading(false);
+        }
       }, 800); // Simulate network delay
     };
 

@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { generateMockRecommendations, mockTools } from '@/utils/mockData';
 
 interface Recommendation {
   tool_id: string;
@@ -47,29 +48,68 @@ const AIRecommendations = () => {
     queryKey: ['tools'],
     queryFn: async () => {
       console.log('Fetching tools from database...');
-      const { data, error } = await supabase
-        .from('tools')
-        .select(`
-          *,
-          categories(name)
-        `)
-        .eq('is_verified', true);
-      
-      if (error) {
-        console.error('Error fetching tools:', error);
-        throw error;
+      try {
+        const { data, error } = await supabase
+          .from('tools')
+          .select(`
+            *,
+            categories(name)
+          `)
+          .eq('is_verified', true);
+        
+        if (error) {
+          console.error('Error fetching tools from database:', error);
+          throw error;
+        }
+        
+        console.log(`Fetched ${data?.length || 0} tools from database`);
+        
+        // If no tools from database, use mock data
+        if (!data || data.length === 0) {
+          console.log('No tools found in database, using mock data');
+          // Create a lookup object for tools from mockTools
+          const toolsMap = mockTools.reduce((acc: { [key: string]: any }, tool: any) => {
+            acc[tool.id] = {
+              id: tool.id,
+              name: tool.name,
+              description: tool.description,
+              url: tool.url,
+              image_url: tool.imageUrl,
+              categories: { name: tool.category }
+            };
+            return acc;
+          }, {});
+          
+          setTools(toolsMap);
+          return mockTools;
+        }
+        
+        // Create a lookup object for tools
+        const toolsMap = (data || []).reduce((acc: { [key: string]: Tool }, tool: Tool) => {
+          acc[tool.id] = tool;
+          return acc;
+        }, {});
+        
+        setTools(toolsMap);
+        return data;
+      } catch (error) {
+        console.error('Error in fetchTools:', error);
+        // Fallback to mock data
+        const toolsMap = mockTools.reduce((acc: { [key: string]: any }, tool: any) => {
+          acc[tool.id] = {
+            id: tool.id,
+            name: tool.name,
+            description: tool.description,
+            url: tool.url,
+            image_url: tool.imageUrl,
+            categories: { name: tool.category }
+          };
+          return acc;
+        }, {});
+        
+        setTools(toolsMap);
+        return mockTools;
       }
-      
-      console.log(`Fetched ${data?.length || 0} tools from database`);
-      
-      // Create a lookup object for tools
-      const toolsMap = (data || []).reduce((acc: { [key: string]: Tool }, tool: Tool) => {
-        acc[tool.id] = tool;
-        return acc;
-      }, {});
-      
-      setTools(toolsMap);
-      return data;
     },
   });
 
@@ -97,23 +137,9 @@ const AIRecommendations = () => {
       console.log('Available tools:', Object.values(tools).length);
       
       // For testing purposes, we'll create a mock response if there's an issue with the edge function
-      const mockRecommendation = () => {
+      const getMockRecommendation = () => {
         console.log('Using mock recommendations for testing');
-        // Choose 3-5 random tools from our tools object
-        const toolIds = Object.keys(tools);
-        const shuffledTools = toolIds.sort(() => 0.5 - Math.random());
-        const selectedTools = shuffledTools.slice(0, Math.min(4, toolIds.length));
-        
-        const mockRecommendations = selectedTools.map(toolId => ({
-          tool_id: toolId,
-          reasons: `Based on your needs, ${tools[toolId]?.name} is perfect for ${tools[toolId]?.categories?.name.toLowerCase()} tasks you described.`,
-          usage_tips: `Start by exploring the ${tools[toolId]?.name} interface. It's particularly good for handling the specific requirements you mentioned.`
-        }));
-        
-        return {
-          recommendations: mockRecommendations,
-          general_advice: `For your described tasks, consider using tools in these categories: ${selectedTools.map(id => tools[id]?.categories?.name).filter(Boolean).join(', ')}. These tools can significantly improve your productivity.`
-        };
+        return generateMockRecommendations(query);
       };
       
       // Get the Supabase URL 
@@ -128,6 +154,16 @@ const AIRecommendations = () => {
       
       // Try to call the edge function
       try {
+        // Check if tools are available first
+        if (Object.values(tools).length === 0) {
+          console.warn('No tools available, using mock recommendations');
+          const mockData = getMockRecommendation();
+          setRecommendations(mockData);
+          toast.success("AI recommendations generated (using mock data)");
+          setIsSubmitting(false);
+          return;
+        }
+        
         const response = await fetch(
           `${supabaseUrl}/functions/v1/gemini-recommendations`,
           {
@@ -158,9 +194,9 @@ const AIRecommendations = () => {
         if (data.error) {
           console.error('Error in response:', data.error);
           // Use mock data for testing if there's an error
-          const mockData = mockRecommendation();
+          const mockData = getMockRecommendation();
           setRecommendations(mockData);
-          toast.success("AI recommendations generated successfully!");
+          toast.success("AI recommendations generated (fallback mode)");
         } else {
           setRecommendations(data);
           toast.success("AI recommendations generated successfully!");
@@ -168,7 +204,7 @@ const AIRecommendations = () => {
       } catch (error) {
         console.error('Error calling edge function:', error);
         // Use mock data for testing if there's an error
-        const mockData = mockRecommendation();
+        const mockData = getMockRecommendation();
         setRecommendations(mockData);
         toast.success("AI recommendations generated (fallback mode)");
       }

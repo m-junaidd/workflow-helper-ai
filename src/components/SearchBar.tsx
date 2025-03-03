@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const SearchBar: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -14,11 +15,20 @@ const SearchBar: React.FC = () => {
     if (query.trim()) {
       setIsSubmitting(true);
       console.log('Submitting search query:', query);
+      
       // Add a slight delay to show loading state
       setTimeout(() => {
-        navigate(`/ai-recommendations?q=${encodeURIComponent(query)}`);
-        setIsSubmitting(false);
+        try {
+          navigate(`/ai-recommendations?q=${encodeURIComponent(query)}`);
+          setIsSubmitting(false);
+        } catch (error) {
+          console.error('Error navigating:', error);
+          toast.error('Something went wrong. Please try again.');
+          setIsSubmitting(false);
+        }
       }, 300);
+    } else {
+      toast.error('Please enter a search query');
     }
   };
 
