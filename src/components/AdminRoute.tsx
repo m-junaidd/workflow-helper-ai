@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -9,6 +10,14 @@ interface AdminRouteProps {
 
 const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   const { isAdmin, isLoading, user } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      toast.error("Please log in to access this page");
+    } else if (!isLoading && user && !isAdmin) {
+      toast.error("You don't have permission to access this page");
+    }
+  }, [isLoading, isAdmin, user]);
 
   if (isLoading) {
     return (

@@ -13,6 +13,7 @@ const SearchBar: React.FC = () => {
     e.preventDefault();
     if (query.trim()) {
       setIsSubmitting(true);
+      console.log('Submitting search query:', query);
       // Add a slight delay to show loading state
       setTimeout(() => {
         navigate(`/ai-recommendations?q=${encodeURIComponent(query)}`);
