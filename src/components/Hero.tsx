@@ -11,13 +11,18 @@ const Hero: React.FC = () => {
   useEffect(() => {
     const fetchWelcomeMessage = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('get-welcome-message');
+        // Add proper Authorization header with anon key
+        const { data, error } = await supabase.functions.invoke('get-welcome-message', {
+          headers: {
+            Authorization: `Bearer ${supabase.auth.session()?.access_token || ''}`
+          }
+        });
         
         if (error) {
           console.error('Error fetching welcome message:', error);
           setWelcomeMessage('Discover the perfect AI tools tailored to your specific needs and workflows.');
         } else {
-          setWelcomeMessage(data.message);
+          setWelcomeMessage(data.message || 'Find AI tools that transform how you work');
         }
       } catch (err) {
         console.error('Exception fetching welcome message:', err);

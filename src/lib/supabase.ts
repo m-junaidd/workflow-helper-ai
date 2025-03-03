@@ -7,6 +7,14 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
+// Helper function to get authorization header for edge functions
+export const getAuthHeader = () => {
+  const session = supabase.auth.getSession();
+  return {
+    Authorization: `Bearer ${supabaseAnonKey}`
+  };
+};
+
 // Helper function to check if a user is an admin
 export const isUserAdmin = async (userId: string): Promise<boolean> => {
   try {

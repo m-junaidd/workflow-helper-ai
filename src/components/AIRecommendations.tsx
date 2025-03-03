@@ -1,415 +1,99 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useLocation } from 'react-router-dom';
+import ToolCard from './ToolCard';
+import { getToolsByQuery, Tool } from '../utils/mockData';
+import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { ExternalLink, Zap, Lightbulb, BookmarkCheck, Sparkles } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useSearchParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { mockTools } from '@/utils/mockData';
+// Import the getAuthHeader function
+import { supabase, getAuthHeader } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
 
-interface Recommendation {
-  tool_id: string;
-  reasons: string;
-  usage_tips: string;
-}
-
-interface RecommendationsResponse {
-  recommendations: Recommendation[];
-  general_advice: string;
-  error?: string;
-}
-
-interface Tool {
-  id: string;
-  name: string;
-  description: string;
-  url: string;
-  image_url?: string;
-  categories?: { name: string };
-}
-
-const AIRecommendations = () => {
-  const [searchParams] = useSearchParams();
-  const initialQuery = searchParams.get('q') || '';
+const AIRecommendations: React.FC = () => {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const searchQuery = queryParams.get('q') || '';
   
-  const [query, setQuery] = useState(initialQuery);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
-  const [tools, setTools] = useState<{ [key: string]: Tool }>({});
-  const { user } = useAuth();
+  const [recommendations, setRecommendations] = useState<Tool[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch tools data
-  const { isLoading: isLoadingTools, data: toolsData } = useQuery({
-    queryKey: ['tools'],
-    queryFn: async () => {
-      console.log('Fetching tools from database...');
-      try {
-        const { data, error } = await supabase
-          .from('tools')
-          .select(`
-            *,
-            categories(name)
-          `)
-          .eq('is_verified', true);
-        
-        if (error) {
-          console.error('Error fetching tools from database:', error);
-          throw error;
-        }
-        
-        console.log(`Fetched ${data?.length || 0} tools from database`);
-        
-        if (!data || data.length === 0) {
-          console.log('No tools found in database, using mock data');
-          // Create a lookup object for tools from mockTools
-          const toolsMap = mockTools.reduce((acc: { [key: string]: any }, tool: any) => {
-            acc[tool.id] = {
-              id: tool.id,
-              name: tool.name,
-              description: tool.description,
-              url: tool.url,
-              image_url: tool.imageUrl,
-              categories: { name: tool.category }
-            };
-            return acc;
-          }, {});
-          
-          setTools(toolsMap);
-          return mockTools;
-        }
-        
-        // Create a lookup object for tools
-        const toolsMap = (data || []).reduce((acc: { [key: string]: Tool }, tool: Tool) => {
-          acc[tool.id] = tool;
-          return acc;
-        }, {});
-        
-        setTools(toolsMap);
-        return data;
-      } catch (error) {
-        console.error('Error in fetchTools:', error);
-        // Fallback to mock data
-        const toolsMap = mockTools.reduce((acc: { [key: string]: any }, tool: any) => {
-          acc[tool.id] = {
-            id: tool.id,
-            name: tool.name,
-            description: tool.description,
-            url: tool.url,
-            image_url: tool.imageUrl,
-            categories: { name: tool.category }
-          };
-          return acc;
-        }, {});
-        
-        setTools(toolsMap);
-        return mockTools;
-      }
-    },
-  });
-
-  // Submit the query automatically if it comes from URL parameters
   useEffect(() => {
-    if (initialQuery && !isLoadingTools && toolsData) {
-      console.log('Auto-submitting query from URL:', initialQuery);
-      handleSubmit(new Event('submit') as unknown as React.FormEvent);
-    }
-  }, [initialQuery, isLoadingTools, toolsData]);
+    fetchRecommendations(searchQuery);
+  }, [searchQuery]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!query.trim()) {
-      toast.error("Please describe your work or tasks to get AI tool recommendations");
-      return;
-    }
-    
-    setIsSubmitting(true);
-    setRecommendations(null);
+  const fetchRecommendations = async (searchQuery: string) => {
+    setIsLoading(true);
+    setError(null);
     
     try {
-      console.log('Submitting query:', query);
-      console.log('Available tools:', Object.values(tools).length);
+      console.log('Fetching AI recommendations for:', searchQuery);
       
-      // Get the Supabase URL 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://bnycgfzpfoiuwwnhxtjd.supabase.co";
-      console.log('Using Supabase URL:', supabaseUrl);
-      
-      // Call the edge function directly with simple params
-      const { data, error } = await supabase.functions.invoke('get-ai-recommendations', {
-        body: { query, tools: Object.values(tools) }
-      });
-      
-      if (error) {
-        console.error('Error calling edge function:', error);
-        throw error;
-      }
-      
-      console.log('Response data:', data);
-      
-      if (data && !data.error) {
-        setRecommendations(data);
-        toast.success("AI recommendations generated successfully!");
-      } else {
-        console.error('Error in response:', data?.error);
-        throw new Error(data?.error || 'Unknown error occurred');
-      }
-    } catch (error) {
-      console.error('Error getting recommendations:', error);
-      toast.error("Using fallback recommendations due to an error");
-      
-      // Generate fallback recommendations
-      const fallbackRecommendations = generateFallbackRecommendations(query, Object.values(tools));
-      setRecommendations(fallbackRecommendations);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Fallback recommendation generator when API fails
-  const generateFallbackRecommendations = (query: string, allTools: Tool[]) => {
-    const keywords = query.toLowerCase().split(/\s+/);
-    const toolMatches = new Map<string, number>();
-    
-    // Score tools based on keyword matches
-    allTools.forEach(tool => {
-      let score = 0;
-      const toolText = `${tool.name} ${tool.description} ${tool.categories?.name || ''}`.toLowerCase();
-      
-      keywords.forEach(keyword => {
-        if (toolText.includes(keyword)) {
-          score += 1;
+      // Use the getAuthHeader function to get the authorization header
+      const { data, error } = await supabase.functions.invoke(
+        'get-ai-recommendations',
+        {
+          body: { query: searchQuery },
+          headers: getAuthHeader()
         }
-      });
-      
-      if (score > 0) {
-        toolMatches.set(tool.id, score);
+      );
+
+      if (error) {
+        console.error('Error fetching recommendations:', error);
+        setError('Failed to fetch recommendations. Falling back to mock data.');
+        const mockResults = getToolsByQuery(searchQuery);
+        setRecommendations(mockResults);
+      } else if (data && data.results) {
+        setRecommendations(data.results);
+      } else {
+        // If no results, fallback to mock data
+        console.log('No results found, using mock data as fallback');
+        const mockResults = getToolsByQuery(searchQuery);
+        setRecommendations(mockResults);
       }
-    });
-    
-    // Sort tools by score and take top 3
-    const sortedTools = [...toolMatches.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([id]) => id);
-    
-    // Generate recommendations
-    const recommendations: Recommendation[] = sortedTools.map(id => {
-      const tool = allTools.find(t => t.id === id)!;
-      return {
-        tool_id: id,
-        reasons: `This tool matches your needs for "${query}" based on its capabilities in ${tool.categories?.name || 'its category'}.`,
-        usage_tips: `Start with the basic features and gradually explore more advanced options as you become comfortable with the interface.`
-      };
-    });
-    
-    return {
-      recommendations,
-      general_advice: `Based on your query "${query}", we recommend tools that can help automate and enhance your workflow. These tools are selected based on relevance to your described tasks.`
-    };
-  };
-
-  const handleSaveToFavorites = async (toolId: string) => {
-    if (!user) {
-      toast.error("Please sign in to save favorites");
-      return;
-    }
-
-    try {
-      // Check if already favorited
-      const { data: existingFavorite, error: checkError } = await supabase
-        .from('favorites')
-        .select()
-        .eq('user_id', user.id)
-        .eq('tool_id', toolId)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('Error checking favorite:', checkError);
-        throw checkError;
-      }
-
-      if (existingFavorite) {
-        toast.info("This tool is already in your favorites!");
-        return;
-      }
-
-      // Add to favorites
-      const { error } = await supabase
-        .from('favorites')
-        .insert({
-          user_id: user.id,
-          tool_id: toolId
-        });
-
-      if (error) throw error;
-      toast.success("Added to favorites!");
-    } catch (error) {
-      console.error('Error saving favorite:', error);
-      toast.error("Failed to add to favorites");
+    } catch (err) {
+      console.error('Exception fetching recommendations:', err);
+      setError('An unexpected error occurred. Falling back to mock data.');
+      const mockResults = getToolsByQuery(searchQuery);
+      setRecommendations(mockResults);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-12">
-      <div className="text-center mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold mb-4">
-          <span className="text-blue-600">Find the Perfect AI Tools</span>
-          <span className="text-gray-800"> for Your Workflow</span>
-        </h1>
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Tell us about your work or task, and we'll recommend the best AI tools to boost your productivity
-        </p>
+    <div className="container mx-auto px-4 py-10">
+      <div className="mb-8">
+        <a href="/" className="inline-flex items-center text-blue-500 hover:text-blue-700">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
+        </a>
       </div>
-    
-      <Card className="border-none shadow-xl bg-gradient-to-br from-blue-50 to-white mb-10">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-2xl font-bold text-center text-blue-600">
-            <span className="flex items-center justify-center">
-              <Sparkles className="h-5 w-5 mr-2 text-blue-500" />
-              AI Tool Advisor
-            </span>
-          </CardTitle>
-          <CardDescription className="text-center text-base">
-            Describe what you're trying to accomplish, and our AI will find the best tools for you
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="relative">
-              <Textarea
-                placeholder="E.g., I'm a student who needs help with research and writing assignments..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full p-4 min-h-[120px] text-base bg-white/80 backdrop-blur-sm border-blue-200 focus:border-blue-400 rounded-xl"
-              />
-            </div>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting || isLoadingTools || !query.trim()}
-              className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Finding the best tools...
-                </>
-              ) : (
-                <>
-                  <Zap className="mr-2" size={18} />
-                  Get AI Recommendations
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
 
-      {isSubmitting && (
-        <div className="mt-8 space-y-6">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="ml-3 text-blue-600 font-medium">Analyzing your needs...</p>
-          </div>
-          <div className="space-y-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <Skeleton className="h-8 w-1/2" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            ))}
-          </div>
+      <h1 className="text-3xl font-semibold mb-4">
+        AI Tool Recommendations for: &quot;{searchQuery}&quot;
+      </h1>
+
+      {isLoading && (
+        <div className="flex justify-center items-center">
+          <Skeleton className="h-10 w-[200px]" />
         </div>
       )}
 
-      {recommendations && !isSubmitting && (
-        <div className="mt-8 space-y-6">
-          {recommendations.error ? (
-            <div className="p-6 bg-red-50 text-red-600 rounded-lg border border-red-100">
-              <h3 className="font-bold mb-2">Error</h3>
-              <p>{recommendations.error}</p>
-              <p className="mt-2 text-sm">Please try again with a more specific description of your needs.</p>
-            </div>
-          ) : (
-            <>
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-xl shadow-md border border-blue-200">
-                <h3 className="text-lg font-medium text-gray-800 mb-2 flex items-center">
-                  <Lightbulb className="mr-2 text-blue-600" size={20} />
-                  General Advice
-                </h3>
-                <p className="text-gray-700">{recommendations.general_advice}</p>
-              </div>
-              
-              <h3 className="text-xl font-semibold mt-8 mb-4 text-gray-800">Recommended Tools</h3>
-              
-              {recommendations.recommendations?.length > 0 ? (
-                <div className="space-y-6">
-                  {recommendations.recommendations.map((rec, index) => {
-                    const tool = tools[rec.tool_id];
-                    
-                    if (!tool) {
-                      console.warn('Tool not found:', rec.tool_id);
-                      return null;
-                    }
-                    
-                    return (
-                      <Card key={index} className="overflow-hidden border border-blue-100 hover:shadow-lg transition-all duration-300">
-                        <CardHeader className="pb-2 bg-gradient-to-r from-blue-50 to-white">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-xl text-blue-700">{tool.name}</CardTitle>
-                            {tool.categories && (
-                              <span className="px-3 py-1 bg-blue-100 text-blue-600 text-xs font-medium rounded-full">
-                                {tool.categories.name}
-                              </span>
-                            )}
-                          </div>
-                          <CardDescription>{tool.description}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4 pt-4">
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-1">Why it's recommended for you:</h4>
-                            <p className="text-gray-600">{rec.reasons}</p>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-1">How to use it effectively:</h4>
-                            <p className="text-gray-600">{rec.usage_tips}</p>
-                          </div>
-                        </CardContent>
-                        <CardFooter className="flex justify-between pt-2 border-t border-gray-100">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => window.open(tool.url, '_blank')}
-                            className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Visit Website
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleSaveToFavorites(tool.id)}
-                            className="hover:bg-blue-50 text-gray-600 hover:text-blue-600"
-                          >
-                            <BookmarkCheck className="h-4 w-4 mr-2" />
-                            Save to Favorites
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-100">
-                  <p className="text-gray-600">No specific tools recommended for your query.</p>
-                  <p className="text-gray-500 mt-2">Try being more specific about your needs.</p>
-                </div>
-              )}
-            </>
-          )}
+      {error && (
+        <div className="text-red-500 mb-4">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {recommendations.map(tool => (
+          <ToolCard key={tool.id} tool={tool} />
+        ))}
+      </div>
+
+      {recommendations.length === 0 && !isLoading && !error && (
+        <div className="text-gray-500 mt-4">
+          No AI tools found for the query &quot;{searchQuery}&quot;.
         </div>
       )}
     </div>
